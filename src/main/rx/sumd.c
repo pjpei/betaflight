@@ -76,6 +76,7 @@ static uint16_t crc;
 static uint8_t sumd[SUMD_BUFFSIZE] = { 0, };
 static uint8_t sumdChannelCount;
 static timeUs_t lastFrameTimeUs = 0;
+static timeUs_t lastRcFrameTimeUs = 0;
 
 // Receive ISR callback
 static void sumdDataReceive(uint16_t c, void *data)
@@ -155,16 +156,21 @@ static uint8_t sumdFrameStatus(rxRuntimeState_t *rxRuntimeState)
     }
 
     if (!(frameStatus & (RX_FRAME_FAILSAFE | RX_FRAME_DROPPED))) {
-        rxRuntimeState->lastRcFrameTimeUs = lastFrameTimeUs;
+        lastRcFrameTimeUs = lastFrameTimeUs;
     }
 
     return frameStatus;
 }
 
-static float sumdReadRawRC(const rxRuntimeState_t *rxRuntimeState, uint8_t chan)
+static uint16_t sumdReadRawRC(const rxRuntimeState_t *rxRuntimeState, uint8_t chan)
 {
     UNUSED(rxRuntimeState);
-    return (float)sumdChannels[chan] / 8;
+    return sumdChannels[chan] / 8;
+}
+
+static timeUs_t sumdFrameTimeUsFn(void)
+{
+    return lastRcFrameTimeUs;
 }
 
 bool sumdInit(const rxConfig_t *rxConfig, rxRuntimeState_t *rxRuntimeState)
@@ -172,9 +178,11 @@ bool sumdInit(const rxConfig_t *rxConfig, rxRuntimeState_t *rxRuntimeState)
     UNUSED(rxConfig);
 
     rxRuntimeState->channelCount = MIN(SUMD_MAX_CHANNEL, MAX_SUPPORTED_RC_CHANNEL_COUNT);
+    rxRuntimeState->rxRefreshRate = 11000;
+
     rxRuntimeState->rcReadRawFn = sumdReadRawRC;
     rxRuntimeState->rcFrameStatusFn = sumdFrameStatus;
-    rxRuntimeState->rcFrameTimeUsFn = rxFrameTimeUs;
+    rxRuntimeState->rcFrameTimeUsFn = sumdFrameTimeUsFn;
 
     const serialPortConfig_t *portConfig = findSerialPortConfig(FUNCTION_RX_SERIAL);
     if (!portConfig) {

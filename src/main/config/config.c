@@ -724,8 +724,6 @@ void validateAndFixGyroConfig(void)
 
 bool readEEPROM(void)
 {
-    suspendRxSignal();
-
     // Sanity check, read flash
     bool success = loadEEPROM();
 
@@ -735,7 +733,6 @@ bool readEEPROM(void)
 
     activateConfig();
 
-    resumeRxSignal();
 
     return success;
 }
@@ -744,19 +741,15 @@ void writeUnmodifiedConfigToEEPROM(void)
 {
     validateAndFixConfig();
 
-    suspendRxSignal();
     eepromWriteInProgress = true;
     writeConfigToEEPROM();
     eepromWriteInProgress = false;
-    resumeRxSignal();
+
     configIsDirty = false;
 }
 
 void writeEEPROM(void)
 {
-#ifdef USE_RX_SPI
-    rxSpiStop(); // some rx spi protocols use hardware timer, which needs to be stopped before writing to eeprom
-#endif
     systemConfigMutable()->configurationState = CONFIGURATION_STATE_CONFIGURED;
 
     writeUnmodifiedConfigToEEPROM();

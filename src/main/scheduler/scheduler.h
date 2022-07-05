@@ -60,12 +60,13 @@
 #define GYRO_LOCK_COUNT 50
 
 typedef enum {
-    TASK_PRIORITY_REALTIME = -1, // Task will be run outside the scheduler logic
     TASK_PRIORITY_LOWEST = 1,
     TASK_PRIORITY_LOW = 2,
     TASK_PRIORITY_MEDIUM = 3,
     TASK_PRIORITY_MEDIUM_HIGH = 4,
     TASK_PRIORITY_HIGH = 5,
+    TASK_PRIORITY_REALTIME = 6,
+    TASK_PRIORITY_TRIGGER = 7,
     TASK_PRIORITY_MAX = 255
 } taskPriority_e;
 
@@ -85,8 +86,10 @@ typedef struct {
     timeDelta_t  latestDeltaTimeUs;
     timeUs_t     maxExecutionTimeUs;
     timeUs_t     totalExecutionTimeUs;
-    timeUs_t     averageExecutionTime10thUs;
-    timeUs_t     averageDeltaTime10thUs;
+    timeUs_t     averageExecutionTimeUs;
+    timeUs_t     averageDeltaTimeUs;
+    timeUs_t     lastExecutedAt;
+    timeUs_t     lastSignaledAt;
     float        movingAverageCycleTimeUs;
 #if defined(USE_LATE_TASK_STATISTICS)
     uint32_t     runCount;
@@ -174,9 +177,6 @@ typedef enum {
     TASK_PINIOBOX,
 #endif
 
-#ifdef USE_CRSF_V3
-    TASK_SPEED_NEGOTIATION,
-#endif
 
     /* Count of real tasks */
     TASK_COUNT,
@@ -187,22 +187,16 @@ typedef enum {
 } taskId_e;
 
 typedef struct {
-    // Configuration
     const char * taskName;
     const char * subTaskName;
     bool (*checkFunc)(timeUs_t currentTimeUs, timeDelta_t currentDeltaTimeUs);
     void (*taskFunc)(timeUs_t currentTimeUs);
     timeDelta_t desiredPeriodUs;        // target period of execution
-    const int8_t staticPriority;        // dynamicPriority grows in steps of this size
-} task_attribute_t;
 
-typedef struct {
-    // Task static data
-    task_attribute_t *attribute;
-
+    const uint8_t staticPriority;   // dynamicPriority grows in steps of this size, shouldn't be zero
     // Scheduling
     uint16_t dynamicPriority;           // measurement of how old task was last executed, used to avoid task starvation
-    uint16_t taskAgePeriods;
+    uint16_t taskAgeCycles;
     timeDelta_t taskLatestDeltaTimeUs;
     timeUs_t lastExecutedAtUs;          // last time of invocation
     timeUs_t lastSignaledAtUs;          // time of invocation event for event-driven tasks
@@ -211,8 +205,8 @@ typedef struct {
     // Statistics
     float    movingAverageCycleTimeUs;
     timeUs_t anticipatedExecutionTime;  // Fixed point expectation of next execution time
-    timeUs_t movingSumDeltaTime10thUs;  // moving sum over 64 samples
-    timeUs_t movingSumExecutionTime10thUs;
+    timeUs_t movingSumDeltaTimeUs;  // moving sum over 64 samples
+    timeUs_t movingSumExecutionTimeUs;
     timeUs_t maxExecutionTimeUs;
     timeUs_t totalExecutionTimeUs;      // total time consumed by task since boot
     timeUs_t lastStatsAtUs;             // time of last stats gathering for rate calculation
